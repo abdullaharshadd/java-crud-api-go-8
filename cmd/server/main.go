@@ -1,17 +1,14 @@
-```go
 package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/rs/zerolog/log"
-	"github.com/go-chi/chi/v5"
-	"migrated-app/cmd/api"
 	"migrated-app/internal/config"
 	"migrated-app/pkg/db"
 )
@@ -22,34 +19,38 @@ func main() {
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to load configuration")
+		log.Fatalf("failed to load configuration: %v", err)
 	}
 
 	dbConn, err := db.Open(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to open database connection")
+		log.Fatalf("failed to open database connection: %v", err)
 	}
 	defer dbConn.Close()
 
+	port := cfg.Port
+	if port == "" {
+		port = "8080"
+	}
+
 	r := buildRouter(dbConn)
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + port,
 		Handler: r,
 	}
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("server error")
+			log.Fatalf("server error: %v", err)
 		}
 	}()
 
-	log.Info().Msg("server started on :8080")
+	log.Printf("server started on :%s", port)
 	<-ctx.Done()
 
 	shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutCtx); err != nil {
-		log.Error().Err(err).Msg("graceful shutdown failed")
+		log.Printf("graceful shutdown failed: %v", err)
 	}
 }
-```
