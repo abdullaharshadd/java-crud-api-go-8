@@ -1,27 +1,25 @@
-```go
 package main
 
 import (
+	"database/sql"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"migrated-app/cmd/api"
-	"migrated-app/pkg/db"
+	"github.com/gin-gonic/gin"
+	"migrated-app/cmd/api/api"
+	"migrated-app/pkg/repository"
+	"migrated-app/pkg/service"
 )
 
 func buildRouter(dbConn *sql.DB) http.Handler {
-	r := chi.NewRouter()
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
+	r := gin.Default()
 
-	r.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("ok"))
+	r.GET("/healthz", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
 	})
 
-	userService := api.InitializeUserService(dbConn)
-	api.RegisterRoutes(r, userService)
+	userDAO := repository.NewUserDAO(dbConn)
+	userService := service.NewUserServiceImp(userDAO)
+	api.RegisterRoutes(r.Group(""), userService)
 
 	return r
 }
-```
