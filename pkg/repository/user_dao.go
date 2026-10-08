@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"migrated-app/pkg/user"
-	error "migrated-app/pkg/error"
+	errors "migrated-app/pkg/error"
 )
 
 // UserDAO defines the interface for managing user entities.
