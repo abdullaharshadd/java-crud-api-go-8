@@ -1,3 +1,4 @@
+```go
 package main
 
 import (
@@ -9,15 +10,31 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/go-chi/chi/v5"
+	"migrated-app/cmd/api"
+	"migrated-app/internal/config"
+	"migrated-app/pkg/db"
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to load configuration")
+	}
+
+	dbConn, err := db.Open(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to open database connection")
+	}
+	defer dbConn.Close()
+
+	r := buildRouter(dbConn)
 	srv := &http.Server{
 		Addr:    ":8080",
-		Handler: buildRouter(),
+		Handler: r,
 	}
 
 	go func() {
@@ -35,3 +52,4 @@ func main() {
 		log.Error().Err(err).Msg("graceful shutdown failed")
 	}
 }
+```
