@@ -2,45 +2,49 @@ package service
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"testing"
 
-	"migrated-app/pkg/error"
+	apperr "migrated-app/pkg/error"
 	"migrated-app/pkg/repository"
 	"migrated-app/pkg/user"
 )
 
-type mockUserDAO struct {
+type mockImpUserDAO struct {
 	repository.UserDAO
-	saveErr      error
-	fetchAllErr  error
-	findByIDErr  error
-	findByNameErr error
-	deleteErr    error
-	updateErr    error
+	saveErr        error
+	fetchAllErr    error
+	findByIDErr    error
+	findByNameUser *user.User
+	findByNameErr  error
+	deleteErr      error
+	updateErr      error
 }
 
-func (m *mockUserDAO) Save(ctx context.Context, user *user.User) error {
+func (m *mockImpUserDAO) Save(ctx context.Context, u *user.User) error {
 	return m.saveErr
 }
 
-func (m *mockUserDAO) FetchAll(ctx context.Context) ([]*user.User, error) {
+func (m *mockImpUserDAO) FetchAll(ctx context.Context) ([]*user.User, error) {
 	return []*user.User{}, m.fetchAllErr
 }
 
-func (m *mockUserDAO) FindByID(ctx context.Context, id int) (*user.User, error) {
+func (m *mockImpUserDAO) FindByID(ctx context.Context, id int) (*user.User, error) {
 	return &user.User{}, m.findByIDErr
 }
 
-func (m *mockUserDAO) FindByName(ctx context.Context, name string) (*user.User, *error.UserNotFoundError) {
-	return &user.User{}, m.findByNameErr
+func (m *mockImpUserDAO) FindByName(ctx context.Context, name string) (*user.User, error) {
+	if m.findByNameErr != nil {
+		return nil, m.findByNameErr
+	}
+	return m.findByNameUser, nil
 }
 
-func (m *mockUserDAO) Delete(ctx context.Context, user *user.User) error {
+func (m *mockImpUserDAO) Delete(ctx context.Context, u *user.User) error {
 	return m.deleteErr
 }
 
-func (m *mockUserDAO) Update(ctx context.Context, user *user.User) error {
+func (m *mockImpUserDAO) Update(ctx context.Context, u *user.User) error {
 	return m.updateErr
 }
 
@@ -56,7 +60,7 @@ func TestSaveUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDAO := &mockUserDAO{saveErr: tt.expectedErr}
+			mockDAO := &mockImpUserDAO{saveErr: tt.expectedErr}
 			userService := NewUserServiceImp(mockDAO)
 			err := userService.SaveUser(context.Background(), tt.user)
 			if err != tt.expectedErr {
@@ -77,7 +81,7 @@ func TestFetchUserList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDAO := &mockUserDAO{fetchAllErr: tt.fetchAllErr}
+			mockDAO := &mockImpUserDAO{fetchAllErr: tt.fetchAllErr}
 			userService := NewUserServiceImp(mockDAO)
 			_, err := userService.FetchUserList(context.Background())
 			if err != tt.fetchAllErr {
@@ -94,15 +98,15 @@ func TestFetchUserByID(t *testing.T) {
 		findByIDErr error
 	}{
 		{"ValidID", 1, nil},
-		{"InvalidID", 2, &error.UserNotFoundError{"User not found", nil}},
+		{"InvalidID", 2, apperr.NewUserNotFoundError("User not found", nil)},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDAO := &mockUserDAO{findByIDErr: tt.findByIDErr}
+			mockDAO := &mockImpUserDAO{findByIDErr: tt.findByIDErr}
 			userService := NewUserServiceImp(mockDAO)
 			_, err := userService.FetchUserByID(context.Background(), tt.id)
-			if !error.IsUserNotFoundError(err) && tt.findByIDErr != nil {
+			if !apperr.IsUserNotFoundError(err) && tt.findByIDErr != nil {
 				t.Errorf("Expected error %v, got %v", tt.findByIDErr, err)
 			}
 		})
@@ -121,7 +125,7 @@ func TestDeleteUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDAO := &mockUserDAO{deleteErr: tt.deleteErr}
+			mockDAO := &mockImpUserDAO{deleteErr: tt.deleteErr}
 			userService := NewUserServiceImp(mockDAO)
 			err := userService.DeleteUser(context.Background(), tt.id)
 			if err != tt.deleteErr {
@@ -144,7 +148,7 @@ func TestUpdateUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDAO := &mockUserDAO{updateErr: tt.updateErr}
+			mockDAO := &mockImpUserDAO{updateErr: tt.updateErr}
 			userService := NewUserServiceImp(mockDAO)
 			err := userService.UpdateUser(context.Background(), tt.id, tt.user)
 			if err != tt.updateErr {
@@ -156,26 +160,26 @@ func TestUpdateUser(t *testing.T) {
 
 func TestGetUserByName(t *testing.T) {
 	tests := []struct {
-		name            string
+		testName        string
 		name            string
 		findByNameErr   error
 		expectedUser    *user.User
 		expectedUserErr error
 	}{
 		{"ValidName", "hemraj", nil, user.NewUser(1, "hemraj", "hemraj@example.com", "password789", "user", "About Hemraj"), nil},
-		{"InvalidName", "nonexistent", &error.UserNotFoundError{"User not found", nil}, nil, &error.UserNotFoundError{"User not found", nil}},
+		{"InvalidName", "nonexistent", apperr.NewUserNotFoundError("User not found", nil), nil, apperr.NewUserNotFoundError("User not found", nil)},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockDAO := &mockUserDAO{findByNameErr: tt.findByNameErr}
+		t.Run(tt.testName, func(t *testing.T) {
+			mockDAO := &mockImpUserDAO{findByNameUser: tt.expectedUser, findByNameErr: tt.findByNameErr}
 			userService := NewUserServiceImp(mockDAO)
-			user, err := userService.GetUserByName(context.Background(), tt.name)
-			if !error.IsUserNotFoundError(err) && tt.expectedUserErr != nil {
+			got, err := userService.GetUserByName(context.Background(), tt.name)
+			if !apperr.IsUserNotFoundError(err) && tt.expectedUserErr != nil {
 				t.Errorf("Expected error %v, got %v", tt.expectedUserErr, err)
 			}
-			if user != nil && user.Name != tt.expectedUser.Name {
-				t.Errorf("Expected user name %s, got %s", tt.expectedUser.Name, user.Name)
+			if got != nil && tt.expectedUser != nil && got.Name != tt.expectedUser.Name {
+				t.Errorf("Expected user name %s, got %s", tt.expectedUser.Name, got.Name)
 			}
 		})
 	}
