@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"migrated-app/internal/config"
+	usermodel "migrated-app/internal/smartcontact/model"
 	"migrated-app/pkg/db"
 )
 
@@ -27,6 +28,22 @@ func main() {
 		log.Fatalf("failed to open database connection: %v", err)
 	}
 	defer dbConn.Close()
+
+	// Create the USER table and the `users` compatibility view queried by
+	// pkg/repository. Bounded so boot can never hang on an unreachable DB.
+	schemaCtx, schemaCancel := context.WithTimeout(ctx, 30*time.Second)
+	for {
+		err = usermodel.EnsureSchema(schemaCtx, dbConn)
+		if err == nil || schemaCtx.Err() != nil {
+			break
+		}
+		log.Printf("schema not ready yet: %v", err)
+		time.Sleep(time.Second)
+	}
+	schemaCancel()
+	if err != nil {
+		log.Printf("warning: ensure schema failed: %v", err)
+	}
 
 	port := cfg.Port
 	if port == "" {
