@@ -2,15 +2,13 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
+	"strconv"
 
-	"migrated-app/internal/logger"
 	"migrated-app/pkg/error"
 	"migrated-app/pkg/service"
 	"migrated-app/pkg/user"
 	"github.com/gin-gonic/gin"
-	"github.com/go-sql-driver/mysql"
 )
 
 // UserController represents the REST controller for user-related operations.
@@ -130,7 +128,7 @@ func (uc *UserController) updateUser(c *gin.Context) {
 func (uc *UserController) getUserNameByName(c *gin.Context) {
 	name := c.Param("name")
 
-	user, err := uc.UserService.GetUserNameByName(context.Background(), name)
+	user, err := uc.UserService.GetUserByName(context.Background(), name)
 	if err != nil {
 		if error.IsUserNotFoundError(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
