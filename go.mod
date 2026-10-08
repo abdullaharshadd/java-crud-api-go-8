@@ -59,7 +59,3 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-// The real ugorji codec (only used by gin's unused MsgPack support) gets the
-// compiler OOM-killed in the build sandbox; use a tiny local stand-in.
-replace github.com/ugorji/go/codec => ./third_party/ugorji-codec
