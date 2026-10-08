@@ -4,7 +4,6 @@ import (
 	"context"
 	"migrated-app/pkg/repository"
 	"migrated-app/pkg/user"
-	"migrated-app/pkg/error"
 )
 
 // UserServiceImp implements the UserService interface.
@@ -44,9 +43,8 @@ func (usi *UserServiceImp) FetchUserByID(ctx context.Context, id int) (*user.Use
 
 // DeleteUser deletes a specific user by their ID from the database.
 func (usi *UserServiceImp) DeleteUser(ctx context.Context, id int) error {
-	user := user.NewUser()
-	user.SetUserID(id)
-	return usi.UserDAO.Delete(ctx, user)
+	u := user.NewUser(id, "", "", "", "", "")
+	return usi.UserDAO.Delete(ctx, u)
 }
 
 // UpdateUser updates a specific user by their ID with the provided user object.
