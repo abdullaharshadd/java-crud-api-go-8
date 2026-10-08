@@ -4,7 +4,6 @@ import (
 	"context"
 	"migrated-app/pkg/repository"
 	"migrated-app/pkg/user"
-	errorpkg "migrated-app/pkg/error"
 )
 
 // UserService defines the interface for managing user entities.
@@ -54,9 +53,8 @@ func (us *userService) FetchUserByID(ctx context.Context, id int) (*user.User, e
 
 // DeleteUser deletes a user by their unique identifier.
 func (us *userService) DeleteUser(ctx context.Context, id int) error {
-	user := user.NewUser()
-	user.SetUserID(id)
-	return us.userDAO.Delete(ctx, user)
+	u := user.NewUser(id, "", "", "", "", "")
+	return us.userDAO.Delete(ctx, u)
 }
 
 // UpdateUser updates a user by their unique identifier with the provided user data.
