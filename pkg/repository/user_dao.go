@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"migrated-app/pkg/user"
-	errors "migrated-app/pkg/error"
+	err "migrated-app/pkg/error"
 )
 
 // UserDAO defines the interface for managing user entities.
@@ -41,7 +41,7 @@ func (u *userDAOImpl) Save(ctx context.Context, user *user.User) error {
 }
 
 // FindByName retrieves a user by their name.
-func (u *userDAOImpl) FindByName(ctx context.Context, name string) (*user.User, error.Error) {
+func (u *userDAOImpl) FindByName(ctx context.Context, name string) (*user.User, *err.UserNotFoundError) {
 	stmt := `SELECT id, name, email, password, role, about FROM users WHERE name = ?`
 	var id int
 	var userName string
@@ -51,7 +51,7 @@ func (u *userDAOImpl) FindByName(ctx context.Context, name string) (*user.User, 
 	var userAbout string
 	err := u.db.QueryRowContext(ctx, stmt, name).Scan(&id, &userName, &userEmail, &userPassword, &userRole, &userAbout)
 	if err == sql.ErrNoRows {
-		return nil, error.NewUserNotFoundError(fmt.Sprintf("User with name %s not found", name), nil)
+		return nil, err.NewUserNotFoundError(fmt.Sprintf("User with name %s not found", name), nil)
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to find user by name: %w", err)
 	}
