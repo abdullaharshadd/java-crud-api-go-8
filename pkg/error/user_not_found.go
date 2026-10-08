@@ -32,7 +32,7 @@ func NewUserNotFoundError(message string, cause error) error {
 // Error returns the error message for UserNotFoundError.
 func (e *UserNotFoundError) Error() string {
 	if e.cause != nil {
-		return fmt.Sprintf("%s: %w", e.message, e.cause)
+		return fmt.Sprintf("%s: %v", e.message, e.cause)
 	}
 	return e.message
 }
