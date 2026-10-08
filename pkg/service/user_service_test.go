@@ -2,9 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
-	"migrated-app/pkg/error"
+	apperr "migrated-app/pkg/error"
 	"migrated-app/pkg/repository"
 	"migrated-app/pkg/user"
 )
@@ -20,11 +21,11 @@ type mockUserDAO struct {
 	findByNameErr  error
 }
 
-func (m *mockUserDAO) Save(ctx context.Context, user *user.User) error {
+func (m *mockUserDAO) Save(ctx context.Context, u *user.User) error {
 	if m.saveErr != nil {
 		return m.saveErr
 	}
-	user.SetUserID(1)
+	u.SetUserID(1)
 	return nil
 }
 
@@ -45,142 +46,60 @@ func (m *mockUserDAO) FindByID(ctx context.Context, id int) (*user.User, error) 
 	if id == 1 {
 		return user.NewUser(1, "Alice", "alice@example.com", "password", "admin", "About Alice"), nil
 	}
-	return nil, error.NewUserNotFoundError("User not found", nil)
+	return nil, apperr.NewUserNotFoundError("User not found", nil)
 }
 
-func (m *mockUserDAO) Delete(ctx context.Context, user *user.User) error {
-	if m.deleteErr != nil {
-		return m.deleteErr
-	}
-	return nil
+func (m *mockUserDAO) Delete(ctx context.Context, u *user.User) error {
+	return m.deleteErr
 }
 
-func (m *mockUserDAO) Update(ctx context.Context, user *user.User) error {
-	if m.updateErr != nil {
-		return m.updateErr
-	}
-	return nil
+func (m *mockUserDAO) Update(ctx context.Context, u *user.User) error {
+	return m.updateErr
 }
 
-func (m *mockUserDAO) FindByName(ctx context.Context, name string) (*user.User, *error.UserNotFoundError) {
+func (m *mockUserDAO) FindByName(ctx context.Context, name string) (*user.User, error) {
 	if m.findByNameErr != nil {
 		return nil, m.findByNameErr
 	}
 	if name == "Alice" {
 		return m.findByNameUser, nil
 	}
-	return nil, error.NewUserNotFoundError("User not found", nil)
+	return nil, apperr.NewUserNotFoundError("User not found", nil)
 }
 
 func TestUserService(t *testing.T) {
 	ctx := context.Background()
+	errSave := errors.New("Failed to save user")
+	errFetch := errors.New("No users found")
+	errNotFound := apperr.NewUserNotFoundError("User not found", nil)
+	errDelete := errors.New("User not found")
+	errUpdate := errors.New("Failed to update user")
+
+	alice := user.NewUser(1, "Alice", "alice@example.com", "password", "admin", "About Alice")
 
 	tests := []struct {
 		name           string
 		dao            *mockUserDAO
 		user           *user.User
-		expectedOutput *user.User
+		expectedOutput []*user.User
 		expectedError  error
 	}{
-		{
-			name: "SaveUser - Success",
-			dao: &mockUserDAO{},
-			user: user.NewUser(0, "Charlie", "charlie@example.com", "password", "guest", "About Charlie"),
-			expectedOutput: user.NewUser(1, "Charlie", "charlie@example.com", "password", "guest", "About Charlie"),
-			expectedError:  nil,
-		},
-		{
-			name: "SaveUser - Failure",
-			dao: &mockUserDAO{
-				saveErr: errors.New("Failed to save user"),
-			},
-			user:           user.NewUser(0, "Diana", "diana@example.com", "password", "user", "About Diana"),
-			expectedOutput: nil,
-			expectedError:  errors.New("Failed to save user"),
-		},
-		{
-			name: "FetchUserList - Empty",
-			dao: &mockUserDAO{
-				fetchAllErr: errors.New("No users found"),
-			},
-			expectedOutput: nil,
-			expectedError:  errors.New("No users found"),
-		},
-		{
-			name: "FetchUserList - Multiple Users",
-			dao: &mockUserDAO{},
-			expectedOutput: []*user.User{
-				user.NewUser(1, "Alice", "alice@example.com", "password", "admin", "About Alice"),
-				user.NewUser(2, "Bob", "bob@example.com", "password", "user", "About Bob"),
-			},
-			expectedError: nil,
-		},
-		{
-			name: "FetchUserByID - Valid ID",
-			dao: &mockUserDAO{},
-			user: user.NewUser(1, "", "", "", "", ""),
-			expectedOutput: user.NewUser(1, "Alice", "alice@example.com", "password", "admin", "About Alice"),
-			expectedError:  nil,
-		},
-		{
-			name: "FetchUserByID - Invalid ID",
-			dao: &mockUserDAO{
-				findByIDErr: error.NewUserNotFoundError("User not found", nil),
-			},
-			user:           user.NewUser(3, "", "", "", "", ""),
-			expectedOutput: nil,
-			expectedError:  error.NewUserNotFoundError("User not found", nil),
-		},
-		{
-			name: "DeleteUser - Valid ID",
-			dao: &mockUserDAO{},
-			user: user.NewUser(1, "", "", "", "", ""),
-			expectedOutput: nil,
-			expectedError:  nil,
-		},
-		{
-			name: "DeleteUser - Invalid ID",
-			dao: &mockUserDAO{
-				deleteErr: errors.New("User not found"),
-			},
-			user:           user.NewUser(3, "", "", "", "", ""),
-			expectedOutput: nil,
-			expectedError:  errors.New("User not found"),
-		},
-		{
-			name: "UpdateUser - Success",
-			dao: &mockUserDAO{},
-			user: user.NewUser(1, "Alice", "alice@example.com", "new_password", "admin", "Updated About Alice"),
-			expectedOutput: nil,
-			expectedError:  nil,
-		},
-		{
-			name: "UpdateUser - Failure",
-			dao: &mockUserDAO{
-				updateErr: errors.New("Failed to update user"),
-			},
-			user:           user.NewUser(1, "Alice", "alice@example.com", "new_password", "admin", "Updated About Alice"),
-			expectedOutput: nil,
-			expectedError:  errors.New("Failed to update user"),
-		},
-		{
-			name: "GetUserByName - Valid Name",
-			dao: &mockUserDAO{
-				findByNameUser: user.NewUser(1, "Alice", "alice@example.com", "password", "admin", "About Alice"),
-			},
-			user:           user.NewUser(1, "Alice", "", "", "", ""),
-			expectedOutput: user.NewUser(1, "Alice", "alice@example.com", "password", "admin", "About Alice"),
-			expectedError:  nil,
-		},
-		{
-			name: "GetUserByName - Invalid Name",
-			dao: &mockUserDAO{
-				findByNameErr: error.NewUserNotFoundError("User not found", nil),
-			},
-			user:           user.NewUser(1, "Eve", "", "", "", ""),
-			expectedOutput: nil,
-			expectedError:  error.NewUserNotFoundError("User not found", nil),
-		},
+		{"SaveUser - Success", &mockUserDAO{}, user.NewUser(0, "Charlie", "charlie@example.com", "password", "guest", "About Charlie"),
+			[]*user.User{user.NewUser(1, "Charlie", "charlie@example.com", "password", "guest", "About Charlie")}, nil},
+		{"SaveUser - Failure", &mockUserDAO{saveErr: errSave}, user.NewUser(0, "Diana", "diana@example.com", "password", "user", "About Diana"), nil, errSave},
+		{"FetchUserList - Empty", &mockUserDAO{fetchAllErr: errFetch}, nil, nil, errFetch},
+		{"FetchUserList - Multiple Users", &mockUserDAO{}, nil, []*user.User{
+			user.NewUser(1, "Alice", "alice@example.com", "password", "admin", "About Alice"),
+			user.NewUser(2, "Bob", "bob@example.com", "password", "user", "About Bob"),
+		}, nil},
+		{"FetchUserByID - Valid ID", &mockUserDAO{}, user.NewUser(1, "", "", "", "", ""), []*user.User{alice}, nil},
+		{"FetchUserByID - Invalid ID", &mockUserDAO{findByIDErr: errNotFound}, user.NewUser(3, "", "", "", "", ""), nil, errNotFound},
+		{"DeleteUser - Valid ID", &mockUserDAO{}, user.NewUser(1, "", "", "", "", ""), nil, nil},
+		{"DeleteUser - Invalid ID", &mockUserDAO{deleteErr: errDelete}, user.NewUser(3, "", "", "", "", ""), nil, errDelete},
+		{"UpdateUser - Success", &mockUserDAO{}, user.NewUser(1, "Alice", "alice@example.com", "new_password", "admin", "Updated About Alice"), nil, nil},
+		{"UpdateUser - Failure", &mockUserDAO{updateErr: errUpdate}, user.NewUser(1, "Alice", "alice@example.com", "new_password", "admin", "Updated About Alice"), nil, errUpdate},
+		{"GetUserByName - Valid Name", &mockUserDAO{findByNameUser: alice}, user.NewUser(1, "Alice", "", "", "", ""), []*user.User{alice}, nil},
+		{"GetUserByName - Invalid Name", &mockUserDAO{findByNameErr: errNotFound}, user.NewUser(1, "Eve", "", "", "", ""), nil, errNotFound},
 	}
 
 	for _, tt := range tests {
@@ -192,8 +111,8 @@ func TestUserService(t *testing.T) {
 				if err != tt.expectedError {
 					t.Errorf("Expected error %v, got %v", tt.expectedError, err)
 				}
-				if tt.expectedOutput != nil && tt.user.UserID() != tt.expectedOutput.UserID() {
-					t.Errorf("Expected user ID %d, got %d", tt.expectedOutput.UserID(), tt.user.UserID())
+				if len(tt.expectedOutput) == 1 && tt.user.UserID() != tt.expectedOutput[0].UserID() {
+					t.Errorf("Expected user ID %d, got %d", tt.expectedOutput[0].UserID(), tt.user.UserID())
 				}
 			case "FetchUserList - Empty", "FetchUserList - Multiple Users":
 				users, err := svc.FetchUserList(ctx)
@@ -204,12 +123,12 @@ func TestUserService(t *testing.T) {
 					t.Errorf("Expected users %v, got %v", tt.expectedOutput, users)
 				}
 			case "FetchUserByID - Valid ID", "FetchUserByID - Invalid ID":
-				user, err := svc.FetchUserByID(ctx, tt.user.UserID())
+				got, err := svc.FetchUserByID(ctx, tt.user.UserID())
 				if err != tt.expectedError {
 					t.Errorf("Expected error %v, got %v", tt.expectedError, err)
 				}
-				if !equalUsers([]*user.User{user}, []*user.User{tt.expectedOutput}) {
-					t.Errorf("Expected user %v, got %v", tt.expectedOutput, user)
+				if !equalOne(got, tt.expectedOutput) {
+					t.Errorf("Expected user %v, got %v", tt.expectedOutput, got)
 				}
 			case "DeleteUser - Valid ID", "DeleteUser - Invalid ID":
 				err := svc.DeleteUser(ctx, tt.user.UserID())
@@ -222,16 +141,23 @@ func TestUserService(t *testing.T) {
 					t.Errorf("Expected error %v, got %v", tt.expectedError, err)
 				}
 			case "GetUserByName - Valid Name", "GetUserByName - Invalid Name":
-				user, err := svc.GetUserByName(ctx, tt.user.UserName())
+				got, err := svc.GetUserByName(ctx, tt.user.UserName())
 				if err != tt.expectedError {
 					t.Errorf("Expected error %v, got %v", tt.expectedError, err)
 				}
-				if !equalUsers([]*user.User{user}, []*user.User{tt.expectedOutput}) {
-					t.Errorf("Expected user %v, got %v", tt.expectedOutput, user)
+				if !equalOne(got, tt.expectedOutput) {
+					t.Errorf("Expected user %v, got %v", tt.expectedOutput, got)
 				}
 			}
 		})
 	}
+}
+
+func equalOne(got *user.User, expected []*user.User) bool {
+	if got == nil {
+		return len(expected) == 0
+	}
+	return equalUsers([]*user.User{got}, expected)
 }
 
 func equalUsers(a, b []*user.User) bool {
